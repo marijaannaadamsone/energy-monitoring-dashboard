@@ -1,0 +1,21 @@
+# Environment variables and secrets
+.env
+.env.*
+!.env.example #This allows example env files to be committed
+
+# Ansible
+*.retry
+*.log
+
+# Terraform
+.terraform/
+
+# VS Code
+.vscode
+
+# Temporary files
+*.tmp
+
+# SSH keys
+*.pem
+*.key
