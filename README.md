@@ -1,1 +1,1 @@
-# electricity-devops
+# Energy Monitoring Dashboard
