@@ -1,0 +1,41 @@
+
+name: Energy Dashboard CI
+
+on:
+  push:
+    branches:
+      - feature/github-actions
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Repository
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Verify Repository
+        run: |
+          echo "Checking repository..."
+          pwd
+          ls -la
+          test -f README.md
+          echo "Repository verification passed"
+
+      - name: Check Application Files
+        run: |
+          if [ -f app/index.html ]; then
+            echo "Application HTML file found"
+          else
+            echo "Application HTML not added yet"
+          fi
