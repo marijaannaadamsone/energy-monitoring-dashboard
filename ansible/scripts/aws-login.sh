@@ -9,21 +9,13 @@ AWS_CREDENTIALS="$AWS_DIR/credentials"
 
 echo "> Preparing AWS configuration files..."
 
-mkdir -p "$AWS_DIR"
-sudo chmod -R 700 "$AWS_DIR"
+sudo mkdir -p "$AWS_DIR"
+sudo chown -R "$(id -u):$(id -g)" "$AWS_DIR"
 
-for FILE in "$AWS_CONFIG" "$AWS_CREDENTIALS"; do
-    if [[ ! -e "$FILE" ]]; then
-        touch "$FILE"
-    fi
+chmod 700 "$AWS_DIR"
 
-    if [[ ! -O "$FILE" ]]; then
-        echo "> Fixing ownership of $FILE..."
-        sudo chown "$(id -u):$(id -g)" "$FILE"
-    fi
-
-    sudo chmod 600 "$FILE"
-done
+touch "$AWS_CONFIG" "$AWS_CREDENTIALS"
+chmod 600 "$AWS_CONFIG" "$AWS_CREDENTIALS"
 
 echo "> Configuring AWS CLI profiles..."
 

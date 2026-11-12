@@ -32,5 +32,3 @@ echo
 echo "> AWS tools installation completed."
 aws --version
 session-manager-plugin --version
-echo
-echo "> Configured profiles: dev-get-token, dev-mfa"
