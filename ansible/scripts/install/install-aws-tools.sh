@@ -22,11 +22,14 @@ sudo apt install -y awscli
 
 echo "> Installing Session Manager plugin..."
 
+TEMP_FILE="$(mktemp --suffix=.deb)"
+trap 'rm -f "$TEMP_FILE"' EXIT
+
 curl -fsSL \
     https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb \
-    -o "session-manager-plugin.deb"
+    -o "$TEMP_FILE"
 
-sudo apt install -y "./session-manager-plugin.deb"
+sudo apt install -y "$TEMP_FILE"
 
 echo
 echo "> AWS tools installation completed."
