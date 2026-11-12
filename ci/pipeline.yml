@@ -1,0 +1,58 @@
+
+resources:
+  - name: dashboard-source
+    type: git
+    source:
+      uri: https://github.com/marijaannaadamsone/energy-monitoring-dashboard.git
+      branch: main
+
+jobs:
+  - name: build-dashboard
+    plan:
+      - get: dashboard-source
+        trigger: true
+
+      - task: validate-app
+        config:
+          platform: linux
+
+          image_resource:
+            type: registry-image
+            source:
+              repository: alpine
+              tag: "3.20"
+
+          inputs:
+            - name: dashboard-source
+
+          run:
+            path: sh
+            args:
+              - -ec
+              - |
+                test -s dashboard-source/index.html
+                test -s dashboard-source/Dockerfile
+                grep -qi '<html' dashboard-source/index.html
+                echo "HTML validation passed!"
+
+      - task: build-image
+        privileged: true
+        config:
+          platform: linux
+
+          image_resource:
+            type: registry-image
+            source:
+              repository: concourse/oci-build-task
+
+          inputs:
+            - name: dashboard-source
+
+          outputs:
+            - name: image
+
+          params:
+            CONTEXT: dashboard-source
+
+          run:
+            path: build
