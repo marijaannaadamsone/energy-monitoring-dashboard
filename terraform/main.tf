@@ -70,16 +70,6 @@ data "aws_iam_role" "ecs_execution" {
   name = "ecsTaskExecutionRole"
 }
 
-# CloudWatch Logs for Energy Monitoring Dashboard
-resource "aws_cloudwatch_log_group" "dashboard" {
-  name              = "/ecs/energy-monitoring-dashboard"
-  retention_in_days = 7
-
-  tags = {
-    Name    = "energy-dashboard-logs"
-    Project = "EnergyMonitoringDashboard"
-  }
-}
 
 # ECS Task Definition for Energy Monitoring Dashboard
 resource "aws_ecs_task_definition" "dashboard" {
@@ -105,16 +95,6 @@ resource "aws_ecs_task_definition" "dashboard" {
           protocol      = "tcp"
         }
       ]
-
-      logConfiguration = {
-        logDriver = "awslogs"
-
-        options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.dashboard.name
-          "awslogs-region"        = "eu-west-1"
-          "awslogs-stream-prefix" = "ecs"
-        }
-      }
     }
   ])
 
