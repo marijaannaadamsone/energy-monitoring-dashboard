@@ -9,6 +9,7 @@
         name:
           - ca-certificates
           - curl
+          - python3-debian
         state: present
         update_cache: true
         cache_valid_time: 3600
