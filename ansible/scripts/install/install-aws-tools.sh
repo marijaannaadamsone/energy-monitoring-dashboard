@@ -3,8 +3,6 @@
 
 set -Eeuo pipefail
 
-AWS_REGION="eu-west-1"
-
 if [[ ! -f /etc/os-release ]] || ! grep -q '^ID=ubuntu$' /etc/os-release; then
     echo "> This script is intended for Ubuntu."
     exit 1
@@ -30,15 +28,8 @@ curl -fsSL \
 
 sudo apt install -y "./session-manager-plugin.deb"
 
-echo "> Configuring AWS CLI profiles..."
-
-for PROFILE in dev-get-token dev-mfa; do
-    sudo aws configure set region "$AWS_REGION" --profile "$PROFILE"
-    sudo aws configure set output json --profile "$PROFILE"
-done
-
 echo
-echo "AWS tools installation completed."
+echo "> AWS tools installation completed."
 aws --version
 session-manager-plugin --version
 echo
