@@ -119,6 +119,23 @@
       register: local_password_file
       no_log: true
 
+    - name: Create local Concourse credentials directory
+      ansible.builtin.file:
+        path: "{{ lookup('env', 'HOME') }}/.config/concourse"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+      become: false
+
+    - name: Save Concourse admin password locally
+      ansible.builtin.copy:
+        content: "{{ local_password_file.content | b64decode | trim }}"
+        dest: "{{ lookup('env', 'HOME') }}/.config/concourse/admin-password"
+        mode: "0600"
+      delegate_to: localhost
+      become: false
+      no_log: true
+
     - name: Set deployment secrets
       ansible.builtin.set_fact:
         concourse_postgres_password: "{{ postgres_password_file.content | b64decode | trim }}"
@@ -179,4 +196,4 @@
           - "Concourse is running."
           - "URL: {{ concourse_external_url }}"
           - "Username: {{ concourse_local_user }}"
-          - "Admin password: /opt/concourse/secrets/local_password"
+          - "Admin password saved locally: ~/.config/concourse/admin-password"
