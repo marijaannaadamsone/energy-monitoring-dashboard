@@ -173,7 +173,7 @@ Run it after Docker has been installed. The URL must use the `http://` scheme,
 for example:
 
 ```bash
-ansible-playbook ansible/playbooks/deploy-concourse-ci.yml -e concourse_external_url=http://EC2_PUBLIC_IP:8080
+ansible-playbook ansible/playbooks/deploy-concourse-ci.yml -e concourse_external_url=http://EC2_PUBLIC_IP:80
 ```
 
 The generated secrets are stored on the remote host in
@@ -183,8 +183,19 @@ The generated secrets are stored on the remote host in
 
 ### `docker/concourse/compose.yml`
 
-This Docker Compose configuration defines the Concourse web, worker, and PostgreSQL. 
-It exposes the web service on port `8080`, saves PostgreSQL and worker state in named volumes, and reads runtime settings from the rendered `/opt/concourse/.env` file.
+This Docker Compose configuration defines the Concourse web, worker, and
+PostgreSQL services. It:
+
+- uses Concourse `8.3.1` and PostgreSQL `18` images;
+- exposes the web service on port `80
+- runs the worker in privileged mode with containerd;
+- saves PostgreSQL and worker state in named volumes;
+- reads runtime settings from the rendered `/opt/concourse/.env` file;
+- restarts services unless they are explicitly stopped.
+
+The web service is configured with the `http://` external URL required by the
+current deployment playbook. TLS termination and HTTPS are not configured by
+this repository.
 
 ### `templates/concourse.env.j2`
 
@@ -219,5 +230,5 @@ ansible-inventory --graph
 ansible-playbook ansible/playbooks/test-connection.yml
 ansible-playbook ansible/playbooks/install-docker.yml
 ansible-playbook ansible/playbooks/deploy-concourse-ci.yml \
-  -e concourse_external_url=http://EC2_PUBLIC_IP:8080
+  -e concourse_external_url=http://EC2_PUBLIC_IP:80
 ```
