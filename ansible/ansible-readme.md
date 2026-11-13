@@ -11,8 +11,15 @@ ansible/
 ├── inventory/
 │   └── hosts.ini
 ├── playbooks/
+│   ├── deploy-concourse-ci.yml
 │   ├── install-docker.yml
 │   └── test-connection.yml
+├── templates/
+│   └── concourse.env.j2
+├── docker/
+│   └── concourse/
+│       ├── compose.yml
+│       └── .env.example
 └── scripts/
     ├── aws-login.sh
     └── install/
@@ -148,6 +155,47 @@ The playbook is designed to be repeatable: package installation and service
 management use Ansible state declarations, and the repository cache is
 refreshed only when the Docker repository changes.
 
+### `playbooks/deploy-concourse-ci.yml`
+
+This playbook deploys Concourse CI on the Docker host. It:
+
+1. Validates the required `concourse_external_url` variable.
+2. Creates the Concourse directories under `/opt/concourse`.
+3. Generates the Concourse RSA keys and PostgreSQL and admin passwords when
+   they do not exist.
+4. Copies `docker/concourse/compose.yml` and populates
+   `templates/concourse.env.j2`.
+5. Starts the Docker Compose services.
+6. Waits for the Concourse API to respond before displaying the deployment
+   URL and the path to the generated admin password.
+
+Run it after Docker has been installed. The URL must use the `http://` scheme,
+for example:
+
+```bash
+ansible-playbook ansible/playbooks/deploy-concourse-ci.yml -e concourse_external_url=http://EC2_PUBLIC_IP:8080
+```
+
+The generated secrets are stored on the remote host in
+`/opt/concourse/secrets/` with restrictive permissions.
+
+## Concourse deployment files
+
+### `docker/concourse/compose.yml`
+
+This Docker Compose configuration defines the Concourse web, worker, and PostgreSQL. 
+It exposes the web service on port `8080`, saves PostgreSQL and worker state in named volumes, and reads runtime settings from the rendered `/opt/concourse/.env` file.
+
+### `templates/concourse.env.j2`
+
+This Ansible template supplies the Compose environment values for the external
+URL, PostgreSQL connection, and local Concourse user. The deployment playbook renders it on the remote host with generated passwords.
+Generated passwords are not exposed in task output.
+
+### `docker/concourse/.env.example`
+
+Environment variables expected by the compose configuration with placeholders.
+
 ## Recommended workflow
 
 From the repository root:
@@ -170,4 +218,6 @@ Then validate access and apply the configuration:
 ansible-inventory --graph
 ansible-playbook ansible/playbooks/test-connection.yml
 ansible-playbook ansible/playbooks/install-docker.yml
+ansible-playbook ansible/playbooks/deploy-concourse-ci.yml \
+  -e concourse_external_url=http://EC2_PUBLIC_IP:8080
 ```
