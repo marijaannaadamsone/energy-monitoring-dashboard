@@ -69,3 +69,34 @@ jobs:
           image: image/image.tar
         get_params:
           skip_download: true
+
+
+      - task: prepare-ecs-deployment
+        config:
+          platform: linux
+          image_resource:
+            type: registry-image
+            source:
+              repository: alpine
+              tag: "3.20"
+          inputs:
+            - name: dashboard-image
+          outputs:
+            - name: deploy-info
+          run:
+            path: sh
+            args:
+              - -ec
+              - |
+                REPO="$(cat dashboard-image/repository)"
+                DIGEST="$(cat dashboard-image/digest)"
+
+                case "$DIGEST" in
+                  sha256:*) ;;
+                  *) echo "Invalid image digest"; exit 1 ;;
+                esac
+
+                IMAGE_URI="${REPO}@${DIGEST}"
+
+                printf '%s\n' "$IMAGE_URI" > deploy-info/image-uri.txt
+                echo "Prepared image: $IMAGE_URI"
