@@ -11,6 +11,15 @@ resource "aws_security_group" "concourse" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # Allow HTTP health checks from Concourse to ECS Fargate
+  egress {
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    security_groups = [aws_security_group.dashboard.id]
+  }
+
+
   tags = {
     Name = "energy-dashboard-concourse-sg"
   }
