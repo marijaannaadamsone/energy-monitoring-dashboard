@@ -1,11 +1,11 @@
 
 services:
-
-
   web:
     image: concourse/concourse:8.3.1
     command: web
     restart: unless-stopped
+    networks:
+      - default
     depends_on:
       db:
         condition: service_healthy
@@ -23,24 +23,25 @@ services:
 
       CONCOURSE_POSTGRES_HOST: db
       CONCOURSE_POSTGRES_PORT: 5432
-      CONCOURSE_POSTGRES_DATABASE: ${CONCOURSE_POSTGRES_DB:-atc}
+      CONCOURSE_POSTGRES_DATABASE: ${CONCOURSE_POSTGRES_DB:-concourse}
       CONCOURSE_POSTGRES_USER: ${CONCOURSE_POSTGRES_USER}
       CONCOURSE_POSTGRES_PASSWORD: ${CONCOURSE_POSTGRES_PASSWORD}
 
       CONCOURSE_ADD_LOCAL_USER: "${CONCOURSE_LOCAL_USER}:${CONCOURSE_LOCAL_PASSWORD}"
       CONCOURSE_MAIN_TEAM_LOCAL_USER: ${CONCOURSE_LOCAL_USER}
 
-      CONCOURSE_ENABLE_CACHE_STREAMED_VOLUMES: "true"
-
 #----------------------------------------------------------------------------------------
   worker:
     image: concourse/concourse:8.3.1
     command: worker
     restart: unless-stopped
+    networks:
+      - default
     privileged: true
     depends_on:
       - web
     volumes:
+      - worker-state:/worker-state
       - ./keys:/concourse-keys:ro
     environment:
       CONCOURSE_NAME: worker-01
@@ -53,17 +54,22 @@ services:
   db:
     image: postgres:18
     restart: unless-stopped
+    networks:
+      - default
     environment:
-      POSTGRES_DB: ${CONCOURSE_POSTGRES_DB:-atc}
+      POSTGRES_DB: ${CONCOURSE_POSTGRES_DB:-concourse}
       POSTGRES_USER: ${CONCOURSE_POSTGRES_USER:?Set database username}
       POSTGRES_PASSWORD: ${CONCOURSE_POSTGRES_PASSWORD:?Set database password}
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${CONCOURSE_POSTGRES_USER} -d ${CONCOURSE_POSTGRES_DB:-atc}"]
+      test: 
+      - CMD-SHELL
+      - pg_isready -U ${CONCOURSE_POSTGRES_USER} -d ${CONCOURSE_POSTGRES_DB}
       interval: 10s
       timeout: 5s
       retries: 5
 
 volumes:
   postgres-data:
+  worker-state:
