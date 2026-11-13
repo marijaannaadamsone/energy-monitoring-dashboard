@@ -1,0 +1,173 @@
+# Ansible configuration
+
+This directory contains the Ansible configuration used to connect to the
+Concourse EC2 instance through AWS Systems Manager (SSM) and install Docker.
+
+## Directory layout
+
+```text
+ansible/
+├── requirements.yml
+├── inventory/
+│   └── hosts.ini
+├── playbooks/
+│   ├── install-docker.yml
+│   └── test-connection.yml
+└── scripts/
+    ├── aws-login.sh
+    └── install/
+        ├── install-ansible.sh
+        └── install-aws-tools.sh
+```
+
+## Prerequisites
+
+The scripts in this directory target Ubuntu and Bash. The workstation needs:
+
+- AWS CLI
+- AWS Session Manager plugin
+- Ansible
+- The `amazon.aws` Ansible collection
+- An AWS profile named `dev-get-token` that can be used for MFA
+- Access to the configured AWS account, region, SSM instance, and S3 bucket
+
+The remote EC2 instance must be managed by AWS Systems Manager and have Python
+available at `/usr/bin/python3`. The local AWS identity must also be
+authorized to start an SSM session and use the configured S3 bucket for the
+Ansible SSM connection plugin.
+
+## Configuration
+
+### `ansible.cfg`
+
+The configuration:
+
+- Uses `ansible/inventory/hosts.ini` as the default inventory.
+- Disables SSH host-key checking because this setup uses SSM rather than a
+  conventional SSH connection.
+- Disables retry files.
+- Automatically discovers the remote Python interpreter without displaying
+  discovery warnings.
+- Disables SSH pipelining.
+
+The configuration is stored at the repository root so Ansible discovers it
+when commands are run from the repo root. The inventory path is therefore
+`ansible/inventory/hosts.ini`.
+
+### `inventory/hosts.ini`
+
+The inventory defines one host:
+
+```text
+concourse-ci ansible_host=i-09fdab90632240958
+```
+
+The host belongs to the `concourse` group. Group variables configure the
+`amazon.aws.aws_ssm` connection:
+
+| Variable | Purpose |
+| --- | --- |
+| `ansible_connection` | Uses the AWS SSM connection plugin. |
+| `ansible_aws_ssm_region` | AWS region used for the SSM session (`eu-west-1`). |
+| `ansible_aws_ssm_profile` | AWS CLI profile used by Ansible (`dev-mfa`). |
+| `ansible_aws_ssm_bucket_name` | S3 bucket used by the SSM connection plugin. |
+| `ansible_python_interpreter` | Remote Python executable (`/usr/bin/python3`). |
+
+
+## Installation and authentication scripts
+
+### `scripts/install/install-ansible.sh`
+
+This script:
+
+1. Verifies that the operating system is Ubuntu.
+2. Requests sudo access.
+3. Installs the system packages required by the setup.
+4. Configures `pipx`.
+5. Installs Ansible with its dependencies unless Ansible is already installed.
+6. Prints the installed Ansible version and available `amazon.aws` collections.
+
+Start a new shell, or otherwise reload the shell path, after `pipx ensurepath`
+if the `ansible` command is not immediately available.
+
+### `scripts/install/install-aws-tools.sh`
+
+This script installs:
+
+- AWS CLI from the Ubuntu package repository
+- AWS Session Manager plugin from the official AWS download URL
+
+It prints both tool versions after installation.
+
+### `scripts/aws-login.sh`
+
+This script prepares `~/.aws`, configures the `dev-get-token` and `dev-mfa`
+profiles for `eu-west-1` with JSON output, and runs:
+
+```bash
+aws configure mfa-login --profile dev-get-token --update-profile dev-mfa
+```
+
+It then verifies the resulting identity with
+`aws sts get-caller-identity --profile dev-mfa`.
+
+
+## Playbooks
+
+### `playbooks/test-connection.yml`
+
+This is the connectivity smoke test. It targets the `concourse` group without
+gathering facts, runs `whoami` and reads `/etc/os-release` through the remote
+shell, then displays the returned lines.
+
+Run it before making system changes:
+
+```bash
+ansible-playbook ansible/playbooks/test-connection.yml
+```
+
+### `playbooks/install-docker.yml`
+
+This playbook targets the `concourse` group with privilege escalation. It:
+
+1. Installs `ca-certificates` and `curl`.
+2. Creates `/etc/apt/keyrings`.
+3. Downloads Docker's Ubuntu GPG key.
+4. Configures Docker's stable APT repository using the remote Ubuntu release.
+5. Installs Docker Engine, the Docker CLI, `containerd`, Buildx, and Compose.
+6. Enables and starts the Docker service.
+7. Checks and displays the installed Docker and Docker Compose versions.
+
+Run it after the connection test:
+
+```bash
+ansible-playbook ansible/playbooks/install-docker.yml
+```
+
+The playbook is designed to be repeatable: package installation and service
+management use Ansible state declarations, and the repository cache is
+refreshed only when the Docker repository changes.
+
+## Recommended workflow
+
+From the repository root:
+
+```bash
+bash ansible/scripts/install/install-aws-tools.sh
+bash ansible/scripts/install/install-ansible.sh
+bash ansible/scripts/aws-login.sh
+```
+
+Install collection requirements:
+
+```bash
+ansible-galaxy collection install -r ansible/requirements.yml
+```
+
+Then validate access and apply the configuration:
+
+```bash
+ansible-inventory --graph
+ansible-playbook ansible/playbooks/test-connection.yml
+ansible-playbook ansible/playbooks/install-docker.yml
+```
