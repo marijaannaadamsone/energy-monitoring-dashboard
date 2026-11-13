@@ -17,7 +17,7 @@
         that:
           - concourse_external_url is defined
           - concourse_external_url.startswith('http://')
-        fail_msg: "Provide concourse_external_url, for example http://PUBLIC_IP:8080."
+        fail_msg: "Provide concourse_external_url, for example http://PUBLIC_IP:80."
 
     - name: Install key generation dependencies
       ansible.builtin.apt:
@@ -182,7 +182,7 @@
 
     - name: Wait for Concourse API
       ansible.builtin.uri:
-        url: http://127.0.0.1:8080/api/v1/info
+        url: http://127.0.0.1:80/api/v1/info
         method: GET
         status_code: 200
       register: concourse_health
