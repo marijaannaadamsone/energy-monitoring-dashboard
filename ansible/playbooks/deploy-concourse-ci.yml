@@ -1,0 +1,182 @@
+
+---
+- name: Deploy Concourse CI
+  hosts: concourse
+  become: true
+
+  vars:
+    concourse_version: "8.3.1"
+    concourse_directory: /opt/concourse
+    concourse_keys_directory: /opt/concourse/keys
+    concourse_secrets_directory: /opt/concourse/secrets
+    concourse_local_user: admin
+
+  tasks:
+    - name: Validate deployment URL
+      ansible.builtin.assert:
+        that:
+          - concourse_external_url is defined
+          - concourse_external_url.startswith('http://')
+        fail_msg: "Provide concourse_external_url, for example http://PUBLIC_IP:8080."
+
+    - name: Install key generation dependencies
+      ansible.builtin.apt:
+        name:
+          - openssh-client
+          - openssl
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Create Concourse directories
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "{{ item.mode }}"
+      loop:
+        - path: "{{ concourse_directory }}"
+          mode: "0750"
+        - path: "{{ concourse_keys_directory }}"
+          mode: "0700"
+        - path: "{{ concourse_secrets_directory }}"
+          mode: "0700"
+
+    - name: Generate Concourse RSA keys
+      ansible.builtin.command:
+        argv:
+          - ssh-keygen
+          - -q
+          - -t
+          - rsa
+          - -b
+          - "4096"
+          - -m
+          - PEM
+          - -N
+          - ""
+          - -f
+          - "{{ concourse_keys_directory }}/{{ item }}"
+        creates: "{{ concourse_keys_directory }}/{{ item }}"
+      loop:
+        - session_signing_key
+        - tsa_host_key
+        - worker_key
+
+    - name: Set private key permissions
+      ansible.builtin.file:
+        path: "{{ concourse_keys_directory }}/{{ item }}"
+        owner: root
+        group: root
+        mode: "0600"
+      loop:
+        - session_signing_key
+        - tsa_host_key
+        - worker_key
+
+    - name: Set public key permissions
+      ansible.builtin.file:
+        path: "{{ concourse_keys_directory }}/{{ item }}"
+        owner: root
+        group: root
+        mode: "0644"
+      loop:
+        - tsa_host_key.pub
+        - worker_key.pub
+
+    - name: Generate PostgreSQL password if missing
+      ansible.builtin.shell:
+        cmd: "umask 077 && openssl rand -hex 32 > {{ concourse_secrets_directory }}/postgres_password"
+        creates: "{{ concourse_secrets_directory }}/postgres_password"
+      no_log: true
+
+    - name: Generate Concourse admin password if missing
+      ansible.builtin.shell:
+        cmd: "umask 077 && openssl rand -hex 32 > {{ concourse_secrets_directory }}/local_password"
+        creates: "{{ concourse_secrets_directory }}/local_password"
+      no_log: true
+
+    - name: Set secret file permissions
+      ansible.builtin.file:
+        path: "{{ concourse_secrets_directory }}/{{ item }}"
+        owner: root
+        group: root
+        mode: "0600"
+      loop:
+        - postgres_password
+        - local_password
+
+    - name: Read PostgreSQL password
+      ansible.builtin.slurp:
+        src: "{{ concourse_secrets_directory }}/postgres_password"
+      register: postgres_password_file
+      no_log: true
+
+    - name: Read Concourse admin password
+      ansible.builtin.slurp:
+        src: "{{ concourse_secrets_directory }}/local_password"
+      register: local_password_file
+      no_log: true
+
+    - name: Set deployment secrets
+      ansible.builtin.set_fact:
+        concourse_postgres_password: "{{ postgres_password_file.content | b64decode | trim }}"
+        concourse_local_password: "{{ local_password_file.content | b64decode | trim }}"
+      no_log: true
+
+    - name: Pull Concourse image
+      ansible.builtin.command:
+        cmd: docker pull concourse/concourse:{{ concourse_version }}
+      changed_when: false
+
+    - name: Deploy Docker Compose configuration
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../docker/concourse/compose.yml"
+        dest: "{{ concourse_directory }}/compose.yml"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Deploy Concourse environment configuration
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../templates/concourse.env.j2"
+        dest: "{{ concourse_directory }}/.env"
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+
+    - name: Validate Docker Compose configuration
+      ansible.builtin.command:
+        cmd: docker compose config --quiet
+        chdir: "{{ concourse_directory }}"
+      changed_when: false
+
+    - name: Start Concourse services
+      ansible.builtin.command:
+        cmd: docker compose up -d --remove-orphans
+        chdir: "{{ concourse_directory }}"
+      register: compose_result
+      changed_when: >
+        'Created' in compose_result.stdout or
+        'Recreated' in compose_result.stdout or
+        'Started' in compose_result.stdout
+
+    - name: Wait for Concourse API
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8080/api/v1/info
+        method: GET
+        status_code: 200
+      register: concourse_health
+      retries: 10
+      delay: 10
+      until: concourse_health.status == 200
+
+    - name: Display deployment information
+      ansible.builtin.debug:
+        msg:
+          - "Concourse is running."
+          - "URL: {{ concourse_external_url }}"
+          - "Username: {{ concourse_local_user }}"
+          - "Admin password: /opt/concourse/secrets/local_password"
