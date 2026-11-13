@@ -4,7 +4,7 @@ resources:
     type: git
     source:
       uri: https://github.com/marijaannaadamsone/energy-monitoring-dashboard.git
-      branch: main
+      branch: ((git-branch))
 
   - name: dashboard-image
     type: registry-image
@@ -100,3 +100,34 @@ jobs:
 
                 printf '%s\n' "$IMAGE_URI" > deploy-info/image-uri.txt
                 echo "Prepared image: $IMAGE_URI"
+
+      - task: verify-ecs-deployment-inputs
+        config:
+          platform: linux
+          image_resource:
+            type: registry-image
+            source:
+              repository: bash
+              tag: "5.2"
+          inputs:
+            - name: dashboard-source
+            - name: deploy-info
+          run:
+            path: bash
+            args:
+              - -euc
+              - |
+                test -s dashboard-source/ci/deploy-ecs.sh
+                bash -n dashboard-source/ci/deploy-ecs.sh
+
+                test -s deploy-info/image-uri.txt
+                IMAGE_URI="$(cat deploy-info/image-uri.txt)"
+
+                case "$IMAGE_URI" in
+                  *@sha256:*) ;;
+                  *) echo "Invalid image URI"; exit 1 ;;
+                esac
+
+                echo "Deployment script syntax OK"
+                echo "Docker image: $IMAGE_URI"
+                echo "ECS deployment inputs verified!"
