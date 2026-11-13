@@ -6,6 +6,14 @@ resources:
       uri: https://github.com/marijaannaadamsone/energy-monitoring-dashboard.git
       branch: main
 
+  - name: dashboard-image
+    type: registry-image
+    source:
+      repository: marijaanna/energy-dashboard
+      tag: ci-test
+      username: ((dockerhub-username))
+      password: ((dockerhub-token))
+
 jobs:
   - name: build-dashboard
     plan:
@@ -15,7 +23,6 @@ jobs:
       - task: validate-app
         config:
           platform: linux
-
           image_resource:
             type: registry-image
             source:
@@ -56,3 +63,9 @@ jobs:
 
           run:
             path: build
+
+      - put: dashboard-image
+        params:
+          image: image/image.tar
+        get_params:
+          skip_download: true
