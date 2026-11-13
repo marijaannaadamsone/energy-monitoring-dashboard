@@ -1,0 +1,12 @@
+- name: Test SSM connection to concourse EC2
+  hosts: concourse
+  gather_facts: false
+
+  tasks:
+    - name: check remote whoami and os
+      ansible.builtin.raw: "whoami && cat /etc/os-release"
+      register: system_info
+
+    - name: Display remote system information
+      ansible.builtin.debug:
+        var: system_info.stdout_lines

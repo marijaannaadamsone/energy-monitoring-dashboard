@@ -1,7 +1,7 @@
 # Environment variables and secrets
 .env
 .env.*
-!.env.example #This allows example env files to be committed
+!.env.example
 
 # Ansible
 *.retry
@@ -21,6 +21,7 @@ crash.*.log
 
 # Temporary files
 *.tmp
+/tmp
 
 # SSH keys
 *.pem

@@ -1,0 +1,75 @@
+
+services:
+  web:
+    image: concourse/concourse:8.3.1
+    command: web
+    restart: unless-stopped
+    networks:
+      - default
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "80:8080"
+    volumes:
+      - ./keys:/concourse-keys:ro
+    environment:
+      CONCOURSE_CLUSTER_NAME: energy-monitoring-dashboard
+      CONCOURSE_EXTERNAL_URL: ${CONCOURSE_EXTERNAL_URL:?Set external URL}
+
+      CONCOURSE_SESSION_SIGNING_KEY: /concourse-keys/session_signing_key
+      CONCOURSE_TSA_HOST_KEY: /concourse-keys/tsa_host_key
+      CONCOURSE_TSA_AUTHORIZED_KEYS: /concourse-keys/worker_key.pub
+
+      CONCOURSE_POSTGRES_HOST: db
+      CONCOURSE_POSTGRES_PORT: 5432
+      CONCOURSE_POSTGRES_DATABASE: ${CONCOURSE_POSTGRES_DB:-concourse}
+      CONCOURSE_POSTGRES_USER: ${CONCOURSE_POSTGRES_USER}
+      CONCOURSE_POSTGRES_PASSWORD: ${CONCOURSE_POSTGRES_PASSWORD}
+
+      CONCOURSE_ADD_LOCAL_USER: "${CONCOURSE_LOCAL_USER}:${CONCOURSE_LOCAL_PASSWORD}"
+      CONCOURSE_MAIN_TEAM_LOCAL_USER: ${CONCOURSE_LOCAL_USER}
+
+#----------------------------------------------------------------------------------------
+  worker:
+    image: concourse/concourse:8.3.1
+    command: worker
+    restart: unless-stopped
+    networks:
+      - default
+    privileged: true
+    depends_on:
+      - web
+    volumes:
+      - worker-state:/worker-state
+      - ./keys:/concourse-keys:ro
+    environment:
+      CONCOURSE_NAME: worker-01
+      CONCOURSE_RUNTIME: containerd
+      CONCOURSE_WORK_DIR: /worker-state
+      CONCOURSE_TSA_HOST: web:2222
+      CONCOURSE_TSA_PUBLIC_KEY: /concourse-keys/tsa_host_key.pub
+      CONCOURSE_TSA_WORKER_PRIVATE_KEY: /concourse-keys/worker_key
+#----------------------------------------------------------------------------------------
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    networks:
+      - default
+    environment:
+      POSTGRES_DB: ${CONCOURSE_POSTGRES_DB:-concourse}
+      POSTGRES_USER: ${CONCOURSE_POSTGRES_USER:?Set database username}
+      POSTGRES_PASSWORD: ${CONCOURSE_POSTGRES_PASSWORD:?Set database password}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: 
+      - CMD-SHELL
+      - pg_isready -U ${CONCOURSE_POSTGRES_USER} -d ${CONCOURSE_POSTGRES_DB}
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres-data:
+  worker-state:
