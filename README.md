@@ -50,3 +50,7 @@ ansible-playbook ansible/playbooks/deploy-concourse-ci.yml \
 ```
 
 The deployment playbook runs Concourse web, worker, and PostgreSQL services with Docker Compose, waits for the local API health check, and saves the generated admin password at `~/.config/concourse/admin-password` on the Ansible controller.
+
+## Access Concourse
+
+To access Concourse refer to [`ansible/ansible-readme.md`](ansible/ansible-readme.md) Access Concourse through SSM

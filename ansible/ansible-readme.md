@@ -231,3 +231,23 @@ ansible-playbook ansible/playbooks/install-docker.yml
 ansible-playbook ansible/playbooks/deploy-concourse-ci.yml \
   -e concourse_external_url=https://EC2_PUBLIC_IP
 ```
+
+## Access Concourse through SSM
+
+The Concourse instance should be accessed through AWS Systems Manager (SSM), rather
+than directly over the public internet. Install the AWS CLI and the Session
+Manager plugin locally, then start a port-forwarding session:
+
+```bash
+aws ssm start-session \
+  --target i-09fdab90632240958 \
+  --document-name AWS-StartPortForwardingSession \
+  --parameters '{"portNumber":["443"],"localPortNumber":["8443"]}' \
+  --region eu-west-1 \
+  --profile dev-mfa
+```
+
+Keep the session running and open
+[https://127.0.0.1:8443/](https://127.0.0.1:8443/) in a browser. Because
+Concourse uses a self-signed certificate, the browser may require a
+certificate security exception.
