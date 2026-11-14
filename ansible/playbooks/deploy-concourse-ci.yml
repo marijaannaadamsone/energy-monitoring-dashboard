@@ -10,14 +10,18 @@
     concourse_keys_directory: /opt/concourse/keys
     concourse_secrets_directory: /opt/concourse/secrets
     concourse_local_user: admin
+    #tls
+    concourse_tls_directory: /opt/concourse/tls
+    concourse_tls_certificate: /opt/concourse/tls/tls.crt
+    concourse_tls_private_key: /opt/concourse/tls/tls.key
 
   tasks:
     - name: Validate deployment URL
       ansible.builtin.assert:
         that:
           - concourse_external_url is defined
-          - concourse_external_url.startswith('http://')
-        fail_msg: "Provide concourse_external_url, for example http://PUBLIC_IP:80."
+          - concourse_external_url.startswith('https://')
+        fail_msg: "Provide concourse_external_url, for example https://PUBLIC_IP."
 
     - name: Install key generation dependencies
       ansible.builtin.apt:
@@ -42,6 +46,55 @@
           mode: "0700"
         - path: "{{ concourse_secrets_directory }}"
           mode: "0700"
+        - path: "{{ concourse_tls_directory }}"
+          mode: "0700"
+
+    - name: Determine certificate hostname
+      ansible.builtin.set_fact:
+        concourse_tls_host: >-
+          {{ concourse_external_url
+             | regex_replace('^https://', '')
+             | regex_replace(':[0-9]+/?$', '')
+             | regex_replace('/.*$', '') }}
+
+    - name: Set certificate subject alternative name
+      ansible.builtin.set_fact:
+        concourse_tls_subject_alt_name: >-
+          {{ 'IP:' + concourse_tls_host
+             if concourse_tls_host is match('^[0-9]+(\.[0-9]+){3}$')
+             else 'DNS:' + concourse_tls_host }}
+
+    - name: Generate self-signed Concourse certificate
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - req
+          - -x509
+          - -nodes
+          - -newkey
+          - rsa:2048
+          - -keyout
+          - "{{ concourse_tls_private_key }}"
+          - -out
+          - "{{ concourse_tls_certificate }}"
+          - -days
+          - "3650"
+          - -subj
+          - "/CN={{ concourse_tls_host }}"
+          - -addext
+          - "subjectAltName={{ concourse_tls_subject_alt_name }}"
+        creates: "{{ concourse_tls_private_key }}"
+      no_log: true
+
+    - name: Set certificate permissions
+      ansible.builtin.file:
+        path: "{{ item }}"
+        owner: root
+        group: root
+        mode: "0600"
+      loop:
+        - "{{ concourse_tls_certificate }}"
+        - "{{ concourse_tls_private_key }}"
 
     - name: Generate Concourse RSA keys
       ansible.builtin.command:
@@ -182,9 +235,10 @@
 
     - name: Wait for Concourse API
       ansible.builtin.uri:
-        url: http://127.0.0.1:80/api/v1/info
+        url: https://127.0.0.1:443/api/v1/info
         method: GET
         status_code: 200
+        validate_certs: false
       register: concourse_health
       retries: 10
       delay: 10
