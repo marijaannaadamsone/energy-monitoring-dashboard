@@ -46,7 +46,7 @@ ansible-galaxy collection install -r ansible/requirements.yml
 ansible-playbook ansible/playbooks/test-connection.yml
 ansible-playbook ansible/playbooks/install-docker.yml
 ansible-playbook ansible/playbooks/deploy-concourse-ci.yml \
-  -e concourse_external_url=http://EC2_PUBLIC_IP:80
+  -e concourse_external_url=https://EC2_PUBLIC_IP
 ```
 
 The deployment playbook runs Concourse web, worker, and PostgreSQL services with Docker Compose, waits for the local API health check, and saves the generated admin password at `~/.config/concourse/admin-password` on the Ansible controller.
