@@ -10,9 +10,10 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "80:8080"
+      - "443:443"
     volumes:
       - ./keys:/concourse-keys:ro
+      - ./tls:/concourse-tls:ro
     environment:
       CONCOURSE_CLUSTER_NAME: energy-monitoring-dashboard
       CONCOURSE_EXTERNAL_URL: ${CONCOURSE_EXTERNAL_URL:?Set external URL}
@@ -20,15 +21,19 @@ services:
       CONCOURSE_SESSION_SIGNING_KEY: /concourse-keys/session_signing_key
       CONCOURSE_TSA_HOST_KEY: /concourse-keys/tsa_host_key
       CONCOURSE_TSA_AUTHORIZED_KEYS: /concourse-keys/worker_key.pub
-
+      #database
       CONCOURSE_POSTGRES_HOST: db
       CONCOURSE_POSTGRES_PORT: 5432
       CONCOURSE_POSTGRES_DATABASE: ${CONCOURSE_POSTGRES_DB:-concourse}
       CONCOURSE_POSTGRES_USER: ${CONCOURSE_POSTGRES_USER}
       CONCOURSE_POSTGRES_PASSWORD: ${CONCOURSE_POSTGRES_PASSWORD}
-
+      #local user
       CONCOURSE_ADD_LOCAL_USER: "${CONCOURSE_LOCAL_USER}:${CONCOURSE_LOCAL_PASSWORD}"
       CONCOURSE_MAIN_TEAM_LOCAL_USER: ${CONCOURSE_LOCAL_USER}
+      #tls
+      CONCOURSE_TLS_BIND_PORT: 443
+      CONCOURSE_TLS_CERT: /concourse-tls/tls.crt
+      CONCOURSE_TLS_KEY: /concourse-tls/tls.key
 
 #----------------------------------------------------------------------------------------
   worker:
